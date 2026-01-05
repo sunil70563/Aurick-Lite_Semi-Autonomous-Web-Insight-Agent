@@ -76,7 +76,7 @@ python run_agent.py
 ## 📌 Project Status
 
 - [x] Browser interaction layer
-- [ ] Page observer (DOM & visible text)
+- [x] Page observer (DOM & visible text)
 - [ ] LLM-powered reasoning engine
 - [ ] Decision planner & executor
 - [ ] Issue analyzer & reporting

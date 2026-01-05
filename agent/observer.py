@@ -1,66 +1,91 @@
-from bs4 import BeautifulSoup
+from typing import Dict, Any, List
 from loguru import logger
 from browser.playwright_manager import PlaywrightManager
 
 class Observer:
     """
-    Parses browser state into a LLM-friendly format.
+    The Page Perception Layer.
+    Extracts human-visible context using JavaScript execution in the browser.
     """
     def __init__(self, browser: PlaywrightManager):
         self.browser = browser
 
-    async def observe(self) -> dict:
+    async def observe(self) -> Dict[str, Any]:
         """
-        Returns a structured observation of the current page.
+        Capture the current page state in a structured, LLM-friendly format.
         """
         if not self.browser.page:
             return {"error": "Browser not initialized"}
+        
+        page = self.browser.page
 
         try:
-            # Get raw content
-            content = await self.browser.page.content()
-            state = await self.browser.get_state()
-            
-            # Simplify DOM for LLM (Reduce token usage)
-            soup = BeautifulSoup(content, 'html.parser')
-            
-            # Remove scripts, styles, svgs
-            for tag in soup(['script', 'style', 'svg', 'path', 'noscript']):
-                tag.decompose()
+            logger.info(f"Observing page: {page.url}")
 
-            # Extract interactive elements with selectors
-            interactive_elements = []
+            # 1. Basic Metadata
+            url = page.url
+            title = await page.title()
+
+            # 2. Visible Text (What the human sees)
+            # using document.body.innerText is a good approximation of visible text
+            visible_text = await page.evaluate("() => document.body.innerText")
+
+            # 3. Interactive Elements Extraction via JS
+            # We extract Buttons, Links, and Inputs with their properties
             
-            # Links
-            for a in soup.find_all('a', href=True):
-                 text = a.get_text(strip=True) or "[Image Link]"
-                 interactive_elements.append(f"LINK: '{text}' -> {a['href']}")
+            # Buttons: text, disabled status
+            buttons = await page.evaluate("""
+                () => Array.from(document.querySelectorAll('button'))
+                    .map(b => ({
+                        text: b.innerText.trim(),
+                        disabled: b.disabled,
+                        id: b.id,
+                        class: b.className
+                    }))
+                    .filter(b => b.text.length > 0)
+            """)
 
-            # Buttons
-            for btn in soup.find_all('button'):
-                text = btn.get_text(strip=True) or "[Icon Button]"
-                interactive_elements.append(f"BUTTON: '{text}' -> class: {btn.get('class')}")
-            
-            # Inputs
-            for inp in soup.find_all('input'):
-                inp_type = inp.get('type', 'text')
-                placeholder = inp.get('placeholder', '')
-                inp_id = inp.get('id', '')
-                interactive_elements.append(f"INPUT: [{inp_type}] id='{inp_id}' placeholder='{placeholder}'")
+            # Links: text, href
+            links = await page.evaluate("""
+                () => Array.from(document.querySelectorAll('a'))
+                    .map(a => ({
+                        text: a.innerText.trim(),
+                        href: a.href
+                    }))
+                    .filter(a => a.text.length > 0 && a.href.length > 0)
+            """)
 
-            # Clean text body (limit length)
-            body_text = soup.body.get_text(separator=' ', strip=True)[:3000] if soup.body else ""
+            # Inputs: type, placeholder, name, label (heuristic)
+            inputs = await page.evaluate("""
+                () => Array.from(document.querySelectorAll('input, textarea, select'))
+                    .map(i => ({
+                        tag: i.tagName.toLowerCase(),
+                        type: i.type || 'text',
+                        placeholder: i.placeholder || "",
+                        name: i.name || "",
+                        id: i.id || "",
+                        value: i.value || ""
+                    }))
+                    .filter(i => i.type !== 'hidden')
+            """)
 
+            # 4. Construct Structured Context
+            # We cap the lists to avoid context window explosion
             observation = {
-                "url": state.get("url"),
-                "title": state.get("title"),
-                "interactive_elements": interactive_elements[:50], # Limit to avoid context overflow
-                "page_text_summary": body_text
+                "url": url,
+                "title": title,
+                "page_type_signal": "unknown", # To be filled by Reasoner or Heuristic later
+                "visible_text_summary": visible_text[:1500] if visible_text else "", # Cap text
+                "interactive_elements": {
+                    "buttons": buttons[:15], # Top 15 buttons
+                    "links": links[:15],     # Top 15 links
+                    "inputs": inputs[:10]    # Top 10 inputs
+                }
             }
             
-            logger.info(f"Observation captured for {state.get('url')}")
+            logger.info(f"Observation complete. Found {len(buttons)} text-buttons, {len(links)} text-links.")
             return observation
 
         except Exception as e:
             logger.error(f"Observation failed: {e}")
-            return {"error": str(e)}
+            return {"error": f"Observation failed: {str(e)}"}
