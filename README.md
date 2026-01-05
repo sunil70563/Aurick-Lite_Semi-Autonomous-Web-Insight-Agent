@@ -79,7 +79,7 @@ python run_agent.py
 - [x] Page observer (DOM & visible text)
 - [x] LLM-powered reasoning engine
 - [x] Decision planner & executor
-- [ ] Issue analyzer & reporting
+- [x] Issue analyzer & reporting
 - [ ] End-to-end demo run
 
 ---
