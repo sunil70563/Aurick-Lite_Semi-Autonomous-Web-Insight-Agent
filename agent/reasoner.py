@@ -1,49 +1,82 @@
-from typing import Dict, Any, List
+import json
 from loguru import logger
-from llm.groq_client import GroqClient
 from llm.prompts import PAGE_REASONING_PROMPT
+from llm.groq_client import GroqLLM
 
-class Reasoner:
+class PageReasoner:
     """
-    The Brain: Sends observations to Groq and gets a decision.
+    The Brain: Uses Groq to reason about the page state and decide the next action.
     """
-    def __init__(self, client: GroqClient):
-        self.client = client
+    def __init__(self, llm: GroqLLM):
+        self.llm = llm
 
-    def reason(self, observation: Dict[str, Any], history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def reason(self, observation: dict, history: list) -> dict:
         """
-        Consult the LLM for the next action.
+        Send observation to LLM and parse the decision.
         """
+        if "error" in observation:
+             return {
+                "page_summary": "Error in observation",
+                "confidence": 0.0,
+                "next_action": {"type": "stop", "reason": f"Observation failed: {observation.get('error')}"},
+                "potential_issues": ["Observer Failure"]
+            }
+
         try:
-            # Format history (limit to last 5 steps to save tokens)
-            history_summary = [
-                f"Step {h['step']}: Action={h['action'].get('type')} -> Result={h.get('result', 'Unknown')}" 
-                for h in history[-5:]
-            ]
+            # Prepare context for prompt
+            # We dump the dict to a string, possibly filtering or truncating if needed
+            # For now, pass the whole observation as it is structured and capped by Observer
+            context_str = json.dumps(observation, indent=2, ensure_ascii=False)
             
-            prompt = PAGE_REASONING_PROMPT.format(
-                url=observation.get("url", "Unknown"),
-                title=observation.get("title", "Unknown"),
-                page_text=observation.get("page_text_summary", "")[:2000],
-                interactive_elements="\n".join(observation.get("interactive_elements", [])),
-                history="\n".join(history_summary) or "No history yet (Start of session)."
-            )
-
             messages = [
-                {"role": "system", "content": "You are a helpful QA AI agent."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a careful and observant AI QA engineer."
+                },
+                {
+                    "role": "user",
+                    "content": PAGE_REASONING_PROMPT.format(
+                        page_context=context_str
+                    )
+                }
             ]
 
             logger.info("Thinking... (Querying Groq)")
-            decision = self.client.get_json(messages)
-            logger.info(f"Decision: {decision.get('next_action', {}).get('type')} - {decision.get('reasoning')}")
+            raw_output = self.llm.chat(messages)
             
-            return decision
+            # Defensive Parsing
+            # Extract JSON if wrapped in markdown code blocks
+            clean_output = raw_output.strip()
+            if clean_output.startswith("```json"):
+                clean_output = clean_output.replace("```json", "").replace("```", "")
+            elif clean_output.startswith("```"):
+                clean_output = clean_output.replace("```", "")
+            
+            parsed = json.loads(clean_output)
+            logger.info(f"Decision: {parsed.get('next_action', {}).get('type')}")
+            return parsed
 
-        except Exception as e:
-            logger.error(f"Reasoning failed: {e}")
-            # Fallback safe action
+        except json.JSONDecodeError:
+            logger.error(f"JSON Parsing Failed. Raw Output: {raw_output}")
+            # Graceful Fallback
             return {
-                "next_action": {"type": "stop", "reason": f"Error in reasoning: {e}"},
-                "potential_issues": ["Agent crashed during reasoning."]
+                "page_summary": "Unable to parse page context",
+                "confidence": 0.2,
+                "next_action": {
+                    "type": "stop",
+                    "target_description": "",
+                    "reason": "LLM output was invalid JSON"
+                },
+                "potential_issues": ["LLM JSON parsing failure"]
+            }
+        except Exception as e:
+            logger.error(f"Reasoning Error: {e}")
+            return {
+                "page_summary": "Critical Reasoning Error",
+                "confidence": 0.0,
+                "next_action": {
+                    "type": "stop",
+                    "reason": f"System error: {str(e)}"
+                },
+                "potential_issues": ["System Exception"]
             }
