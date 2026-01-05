@@ -62,8 +62,8 @@ class ActionExecutor:
         count = await buttons.count()
         for i in range(count):
             btn = buttons.nth(i)
-            text = await btn.inner_text()
-            if description in text.lower():
+            text = (await btn.inner_text()).lower()
+            if description in text or text in description:
                 logger.info(f"Clicked button: '{text}'")
                 await btn.click()
                 return
@@ -73,25 +73,61 @@ class ActionExecutor:
         count = await links.count()
         for i in range(count):
             link = links.nth(i)
-            text = await link.inner_text()
+            text = (await link.inner_text()).lower()
             # Simple substring match for robustness
-            if description in text.lower():
+            if text and (description in text or text in description):
                  logger.info(f"Clicked link: '{text}'")
                  await link.click()
                  return
+        
+        # 3. Try Inputs (e.g. type="submit")
+        inputs = page.locator("input[type='submit'], input[type='button']")
+        count = await inputs.count()
+        for i in range(count):
+            inp = inputs.nth(i)
+            # Match value attribute: strict containment is too brittle (e.g. "Login Button" vs "Login")
+            # We'll check if the main word of the description is in the value
+            value = await inp.get_attribute("value")
+            if value:
+                val_lower = value.lower()
+                # Check exact containment or word split
+                if description in val_lower or val_lower in description or description.split()[0] in val_lower:
+                    logger.info(f"Clicked input button: '{value}'")
+                    await inp.click()
+                    return
         
         raise Exception(f"No clickable element found matching '{description}'")
 
     async def _execute_type(self, action, page):
         """
-        Type heuristic: Find first visible input.
+        Type heuristic: Find the most relevant input based on description.
         """
-        inputs = page.locator("input:visible")
+        target_desc = action.get("target_description", "").lower()
+        input_value = action.get("input_value", "")
+        
+        if not input_value:
+            logger.warning(f"No input_value provided for '{target_desc}'. Using empty string.")
+            input_value = ""
+
+        logger.info(f"Typing '{input_value}' into '{target_desc}'")
+
+        inputs = page.locator("input:visible, textarea:visible")
         count = await inputs.count()
         
         if count == 0:
             raise Exception("No visible input fields found")
+
+        # Smart Match: Check placeholders, names, ids
+        for i in range(count):
+            inp = inputs.nth(i)
+            attrs = await inp.evaluate("el => (el.placeholder + ' ' + el.name + ' ' + el.id).toLowerCase()")
             
-        # For demo purposes, type into the first available input
-        # Step 4 instructions explicitly asked for this simple behavior
-        await inputs.first.fill("test@example.com")
+            # Simple keyword matching
+            keywords = target_desc.split()
+            if any(k in attrs for k in keywords if len(k) > 2):
+                await inp.fill(input_value)
+                return
+
+        # Fallback: Type in first empty or just first input if no match found
+        logger.warning(f"No specific match for '{target_desc}', typing in first input.")
+        await inputs.first.fill(input_value)

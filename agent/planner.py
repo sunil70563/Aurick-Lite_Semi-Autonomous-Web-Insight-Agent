@@ -27,5 +27,6 @@ class ActionPlanner:
         return {
             "type": action_type,
             "target_description": next_action.get("target_description", "").strip(),
+            "input_value": next_action.get("input_value", ""),
             "reason": next_action.get("reason", "No reason provided")
         }

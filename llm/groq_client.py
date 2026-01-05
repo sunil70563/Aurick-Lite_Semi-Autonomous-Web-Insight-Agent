@@ -5,9 +5,9 @@ from loguru import logger
 class GroqLLM:
     """
     Wrapper for Groq API provided by the `groq` python library.
-    Default Model: llama-3.1-70b-versatile
+    Default Model: llama-3.3-70b-versatile
     """
-    def __init__(self, model="llama-3.1-70b-versatile"):
+    def __init__(self, model="llama-3.3-70b-versatile"):
         self.api_key = os.getenv("GROQ_API_KEY")
         if not self.api_key:
             logger.warning("GROQ_API_KEY environment variable is not set.")

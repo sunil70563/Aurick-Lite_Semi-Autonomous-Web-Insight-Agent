@@ -13,8 +13,8 @@ venv/
 playwright-report/
 
 # Logs & artifacts
-logs/
-screenshots/
+# logs/
+# screenshots/
 
 # OS
 .DS_Store
