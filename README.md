@@ -77,7 +77,7 @@ python run_agent.py
 
 - [x] Browser interaction layer
 - [x] Page observer (DOM & visible text)
-- [ ] LLM-powered reasoning engine
+- [x] LLM-powered reasoning engine
 - [ ] Decision planner & executor
 - [ ] Issue analyzer & reporting
 - [ ] End-to-end demo run
