@@ -1,0 +1,8 @@
+playwright
+python-dotenv
+groq
+pydantic
+loguru
+beautifulsoup4
+pytest
+pytest-asyncio
