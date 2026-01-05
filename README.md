@@ -80,7 +80,7 @@ python run_agent.py
 - [x] LLM-powered reasoning engine
 - [x] Decision planner & executor
 - [x] Issue analyzer & reporting
-- [ ] End-to-end demo run
+- [x] End-to-end demo run
 
 ---
 

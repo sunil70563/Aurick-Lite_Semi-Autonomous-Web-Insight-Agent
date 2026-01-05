@@ -35,16 +35,26 @@ class PlaywrightManager:
         self.page.on("console", self._capture_console)
 
     async def open(self, url: str):
-        """Navigate to a URL."""
+        """Navigate to a URL with retry logic."""
         if not self.page:
             await self.start()
         logger.info(f"Navigating to {url}")
-        try:
-            await self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
-            await self.page.wait_for_timeout(2000) # Give extra time for hydration
-        except Exception as e:
-            logger.error(f"Failed to navigate to {url}: {e}")
-            raise e
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                await self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                await self.page.wait_for_timeout(2000) # Give extra time for hydration
+                return
+            except Exception as e:
+                logger.warning(f"Navigation attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 1s, 2s, 4s
+                    logger.info(f"Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"All navigation retries failed for {url}")
+                    raise e
     
     # Alias for backward compatibility with Executor if needed, or we update Executor later
     async def open_url(self, url: str):

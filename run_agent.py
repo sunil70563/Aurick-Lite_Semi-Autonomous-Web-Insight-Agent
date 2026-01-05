@@ -1,6 +1,10 @@
 import asyncio
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load env immediately
+load_dotenv()
 
 # Ensure root is in path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
