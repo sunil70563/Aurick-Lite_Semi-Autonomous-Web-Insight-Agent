@@ -1,53 +1,97 @@
+import asyncio
 from typing import Dict, Any
 from loguru import logger
 from browser.playwright_manager import PlaywrightManager
 
-class Executor:
+class ActionExecutor:
     """
-    The Hands: Executes the planned action using the Browser Manager.
+    The Hands: Executes planned actions using robust, human-like heuristics.
+    Prioritizes visible text matching over brittle CSS selectors.
     """
-    async def execute(self, action: Dict[str, Any], browser: PlaywrightManager) -> str:
-        """
-        Execute the action and return a result string.
-        """
-        action_type = action.get("type")
-        target = action.get("target_selector")
-        text = action.get("input_text")
+    async def execute(self, action: Dict[str, Any], browser: PlaywrightManager) -> Dict[str, Any]:
+        
+        page = browser.page
+        if not page:
+            return {"status": "error", "details": "Browser not initialized"}
 
-        logger.info(f"Executing: {action_type} on {target or 'N/A'}")
+        result = {
+            "status": "success",
+            "details": "",
+            "action_type": action["type"]
+        }
+
+        logger.info(f"Executing Action: {action['type']} -> {action['target_description']}")
 
         try:
-            if action_type == "click":
-                if not target: return "Error: No target for click."
-                # Heuristic: If target starts with "LINK: ", extract href?
-                # The observer returns "LINK: 'text' -> href". The LLM might return that whole string or just 'text'.
-                # Ideally LLM returns a CSS selector. The Observer currently doesn't provide CSS selectors explicitly for all items, 
-                # but we can try basic text matching if it's not a valid selector.
-                
-                # Check if it looks like a text match selector (Playwright supports text=...)
-                if "text=" not in target and not target.startswith((".", "#", "//", "html")):
-                    # Assume it's text
-                     target = f"text={target}"
-                
-                await browser.click_element(target)
-                return "Click successful"
+            if action["type"] == "click":
+                await self._execute_click(action, page)
 
-            elif action_type == "type":
-                if not target or not text: return "Error: Missing target or text for type."
-                await browser.type_text(target, text)
-                return f"Typed '{text}' successful"
+            elif action["type"] == "navigate":
+                target = action.get("target_description")
+                if target:
+                    await browser.open(target)
+                else:
+                    raise Exception("Navigation target missing")
 
-            elif action_type == "navigate":
-                if not target: return "Error: No url for navigate."
-                await browser.open_url(target)
-                return f"Navigated to {target}"
+            elif action["type"] == "type":
+                await self._execute_type(action, page)
 
-            elif action_type == "stop":
-                return "Agent decided to STOP."
-
-            else:
-                return f"Unknown action type: {action_type}"
+            elif action["type"] == "stop":
+                result["status"] = "stopped"
+                result["details"] = f"Agent decided to stop: {action.get('reason')}"
+            
+            # Capture evidence of action
+            await browser.screenshot(f"action_{action['type']}")
 
         except Exception as e:
-            logger.error(f"Execution failed: {e}")
-            return f"Execution Error: {str(e)}"
+            logger.error(f"Execution Failed: {e}")
+            result["status"] = "error"
+            result["details"] = str(e)
+        
+        return result
+
+    async def _execute_click(self, action, page):
+        """
+        Click heuristic: Find element by text content (Button or Link).
+        """
+        description = action["target_description"].lower()
+        if not description: return
+
+        # 1. Try Buttons
+        buttons = page.locator("button")
+        count = await buttons.count()
+        for i in range(count):
+            btn = buttons.nth(i)
+            text = await btn.inner_text()
+            if description in text.lower():
+                logger.info(f"Clicked button: '{text}'")
+                await btn.click()
+                return
+
+        # 2. Try Links
+        links = page.locator("a")
+        count = await links.count()
+        for i in range(count):
+            link = links.nth(i)
+            text = await link.inner_text()
+            # Simple substring match for robustness
+            if description in text.lower():
+                 logger.info(f"Clicked link: '{text}'")
+                 await link.click()
+                 return
+        
+        raise Exception(f"No clickable element found matching '{description}'")
+
+    async def _execute_type(self, action, page):
+        """
+        Type heuristic: Find first visible input.
+        """
+        inputs = page.locator("input:visible")
+        count = await inputs.count()
+        
+        if count == 0:
+            raise Exception("No visible input fields found")
+            
+        # For demo purposes, type into the first available input
+        # Step 4 instructions explicitly asked for this simple behavior
+        await inputs.first.fill("test@example.com")
