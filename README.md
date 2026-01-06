@@ -3,121 +3,97 @@
 Aurick-Lite is a **semi-autonomous AI web agent** inspired by OYESENSE's vision for **Aurick** — the world’s first fully autonomous AI QA engineer.
 
 This project demonstrates how an AI agent can:
-- Observe real web applications like a human
-- Reason about user flows using a Large Language Model (LLM)
-- Make runtime decisions without hardcoded scripts
-- Interact with web pages autonomously
-- Detect confusing, broken, or unexpected behavior
+- **Observe** real web applications like a human (using visual-semantic extraction).
+- **Reason** about user flows using a Large Language Model (Groq Llama-3).
+- **Act** autonomously without hardcoded scripts or selectors.
+- **Reflect** on its actions to detect issues and learn from mistakes.
 
-> ⚠️ This is a **reasoning-first prototype**, not a full-scale QA automation framework.
-
----
-
-## 🧠 Core Concepts
-
-- **Agentic AI** (Observe → Reason → Act → Reflect)
-- **Browser automation without scripts**
-- **LLM-driven decision making**
-- **Human-like exploration of web applications**
+> ⚠️ **Status**: This is a reasoning-first prototype, designed to showcase **Autonomy** and **Explainability**.
 
 ---
 
-## 🏗 Architecture Overview
+## 🧠 Core Features
 
-```
-Browser (Playwright)
-        ↓
-Observer (Page perception)
-        ↓
-Reasoner (Groq LLM)
-        ↓
-Planner
-        ↓
-Executor
-        ↓
-Analyzer (Insights & Issues)
+- **Scriptless Automation**: Interacts with elements based on valid reasoning ("Click the login button because I need to sign in"), not brittle selectors (`#btn-123`).
+- **Resilient Matching**: Uses fuzzy logic to match intent ("Add item to cart") with UI elements ("ADD TO CART", "Add to Bag").
+- **Dynamic Observation**: `agent/observer.py` extracts a Clean Context (Buttons, Inputs, Links) to prevent LLM token overload.
+- **Self-Healing**: Connectivity issues or transient errors trigger automatic retries.
+
+---
+
+## 🏗 Architecture
+
+The system follows a strict **Observe → Reason → Act** loop:
+
+```mermaid
+graph TD
+    A[Browser (Playwright)] -->|DOM & State| B[Observer]
+    B -->|Structured Context| C[Reasoner (LLM)]
+    C -->|Decision JSON| D[Planner]
+    D -->|Safe Action| A
 ```
 
-Each component is modular, observable, and designed to mirror how a human QA engineer thinks.
-
----
-
-## 🛠 Tech Stack
-
-- **Language:** Python (async-first)
-- **Browser Automation:** Playwright
-- **LLM Provider:** Groq
-- **Primary Model:** llama-3.1-70b-versatile
-- **Architecture:** Agent-based, modular design
-- **Outputs:** Structured JSON reasoning, logs, screenshots
+See [DESIGN.md](./DESIGN.md) for a deep dive into the 4-Agent capabilities (Observer, Reasoner, Planner, Analyzer).
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. Install dependencies
-```bash
+### 1. Prerequisites
+- Python 3.10+
+- A [Groq API Key](https://groq.com/) (Free beta keys available)
+
+### 2. Installation
+```powershell
+# Clone the repository
+git clone https://github.com/your-repo/Aurick-Lite.git
+cd Aurick-Lite
+
+# Install dependencies
 pip install -r requirements.txt
 playwright install
 ```
 
-### 2. Set environment variables
-```bash
-export GROQ_API_KEY=your_groq_api_key_here
+### 3. Configuration
+Create a `.env` file in the root directory:
+```env
+GROQ_API_KEY=your_api_key_here
+HEADLESS=false  # Set to true for background execution
 ```
 
-### 3. Run the agent (after full implementation)
-```bash
+### 4. Run the Agent
+To start the autonomous session on the default target (`saucedemo.com`):
+```powershell
 python run_agent.py
 ```
 
 ---
 
-## 📌 Project Status
+## 📊 Output & Logs
 
-- [x] Browser interaction layer
-- [x] Page observer (DOM & visible text)
-- [x] LLM-powered reasoning engine
-- [x] Decision planner & executor
-- [x] Issue analyzer & reporting
-- [x] End-to-end demo run
+After a run, check the `logs/` directory:
+- **`session_YYYYMMDD_HHMMSS.json`**: Full reasoning trace, actions taken, and issues detected.
+- **Screenshots**: Captured at every step for verification.
+
+**Example Insight from Log:**
+```json
+"decision": {
+  "reason": "A real user would likely click 'Add to cart' to proceed with purchase.",
+  "potential_issues": ["No visible cart counter update behavior detected."]
+}
+```
 
 ---
 
 ## 🎯 Design Philosophy
 
 This project intentionally prioritizes:
-- Clear reasoning over coverage
-- Autonomy over scripting
-- Explainability over hidden logic
-
-The goal is to show **how an AI agent thinks**, not just what it clicks.
-
----
-
-## ⚠️ Known Limitations
-
-- No guarantee of full test coverage
-- No backend or API validation
-- Heuristic-based issue detection
-- Single-agent exploration
-
-These trade-offs are intentional for clarity and evaluation purposes.
-
----
-
-## 🔮 Future Improvements
-
-- Multi-agent parallel exploration
-- Long-term memory across sessions
-- Confidence scoring for detected issues
-- CI/CD integration
-- Improved UX anomaly detection
+1.  **Reasoning over Coverage**: It acts slowly but explains *why* it acts.
+2.  **Generic over Specific**: No custom code for specific websites. It should work on any standard web app.
+3.  **Safety**: The Planner blocks dangerous or hallucinated actions (e.g., "Delete Database").
 
 ---
 
 ## 📄 Disclaimer
 
-This project is built strictly for **demonstration and evaluation purposes**.
-It is **not affiliated with or a replica of Aurick**, but an independent prototype
-designed to showcase agentic reasoning aligned with OYESENSE’s vision.
+This project is an independent prototype built for evaluation purposes. It demonstrates the potential of Agentic AI in QA but is not a production-ready framework.
