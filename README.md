@@ -27,11 +27,17 @@ The system follows a strict **Observe → Reason → Act** loop:
 
 ```mermaid
 graph TD
-    A[Browser (Playwright)] -->|DOM & State| B[Observer]
-    B -->|Structured Context| C[Reasoner (LLM)]
-    C -->|Decision JSON| D[Planner]
-    D -->|Safe Action| A
+    A["Browser (Playwright)"] -->|DOM & Page State| B[Observer]
+    B -->|Structured Context| C[Reasoner]
+    C -->|Prompt + Context| D["Groq LLM (Llama-3.1-70b)"]
+    D -->|Decision JSON| C
+    C -->|Next Action| E[Planner]
+    E -->|Validated Action| F[Executor]
+    F -->|Browser Commands| A
+    F -->|Execution Result| G[Analyzer]
+    G -->|Issues & Insights| H[Session Memory]
 ```
+
 
 See [DESIGN.md](./DESIGN.md) for a deep dive into the 4-Agent capabilities (Observer, Reasoner, Planner, Analyzer).
 
