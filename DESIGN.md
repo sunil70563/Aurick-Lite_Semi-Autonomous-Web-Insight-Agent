@@ -13,9 +13,9 @@ The primary goal is **explainable autonomy**, not maximum coverage.
 
 ```mermaid
 graph TD
-    A[Browser (Playwright)] -->|DOM & Page State| B[Observer]
+    A["Browser (Playwright)"] -->|DOM & Page State| B[Observer]
     B -->|Structured Context| C[Reasoner]
-    C -->|Prompt + Context| D[Groq LLM (Llama-3.1-70b)]
+    C -->|Prompt + Context| D["Groq LLM (Llama-3.1-70b)"]
     D -->|Decision JSON| C
     C -->|Next Action| E[Planner]
     E -->|Validated Action| F[Executor]
